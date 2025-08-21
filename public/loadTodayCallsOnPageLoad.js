@@ -7,9 +7,17 @@ export async function loadTodayCallsOnPageLoad (numberOfPastDays) {
 
         updateContent('<h1>RECORDS LOADING ...</h1>', '<h1>PLEASE WAIT</h1>');
 
-        // URL to request Calls from Twilio API
-        const actualDate = new Date();
-        let url = `/api/calls/allCallsToday?actualDate=${actualDate.getDate() - numberOfPastDays}&actualYear=${actualDate.getFullYear()}&actualMonth=${actualDate.getMonth() + 1}`;
+
+        // Build URL to request Calls from Twilio API
+        const target = new Date();
+        target.setHours(0, 0, 0, 0);
+        target.setDate(target.getDate() - numberOfPastDays);
+
+        const y = target.getFullYear();
+        const m = target.getMonth() + 1;  // 1–12
+        const d = target.getDate();       // 1–31
+
+        const url = `/api/calls/allCallsToday?actualYear=${y}&actualMonth=${m}&actualDate=${d}`;
 
         try {
             // Fetch records from Mongo Database and then compare the records against Twilio api response

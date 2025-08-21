@@ -11,13 +11,38 @@ async function getCalls(startTimeBefore, startTimeAfter) {
 }
 
 // Get all Today's calls
-async function getAllCallsToday(todayDate) {
+
+async function getAllCallsToday({ actualYear, actualMonth, actualDate }) {
+  // Build local start/end, then convert to UTC Date objects
+  const startLocal = new Date(actualYear, actualMonth - 1, actualDate, 0, 0, 0, 0);
+  const endLocal   = new Date(actualYear, actualMonth - 1, actualDate, 23, 59, 59, 999);
+
+  const startUTC = new Date(Date.UTC(
+    startLocal.getFullYear(), startLocal.getMonth(), startLocal.getDate(), 0, 0, 0, 0
+  ));
+  const endUTC = new Date(Date.UTC(
+    endLocal.getFullYear(), endLocal.getMonth(), endLocal.getDate(), 23, 59, 59, 999
+  ));
+
+  return await client.calls.list({
+    startTimeAfter: startUTC,
+    startTimeBefore: endUTC,
+    limit: 400
+  });
+}
+
+
+
+
+/* async function getAllCallsToday(todayDate) {
+  console.log(todayDate.actualMonth);
   const todayIs = `${todayDate.actualYear}-${todayDate.actualMonth}-${todayDate.actualDate} 00:00:00`;
   return await client.calls.list({
       startTime: new Date(todayIs),
       limit: 400
   });
 }
+*/
 
 // Filter an array of calls by phone number[s]
 function filterCallsByNumbers(calls, numbers) {

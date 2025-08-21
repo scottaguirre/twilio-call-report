@@ -149,7 +149,7 @@ exports.generateAllCallsToday = async (req, res) => {
     try {
         
         const { actualDate, actualYear, actualMonth } = req.query;
-        const todayDate = {actualDate, actualYear, actualMonth};
+        const todayDate = { actualDate, actualYear, actualMonth };
        
         //It gets an array of all calls from Today
         let allCallsToday = await getAllCallsToday(todayDate);

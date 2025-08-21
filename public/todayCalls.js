@@ -9,9 +9,17 @@ export function todayCalls (todayCallElementID, numberOfPastDays) {
 
         updateContent('<h1>RECORDS LOADING ...</h1>', '<h1>PLEASE WAIT</h1>');
 
-        // URL to request Calls from Twilio API
-        const actualDate = new Date();
-        let url = `/api/calls/allCallsToday?actualDate=${actualDate.getDate() - numberOfPastDays}&actualYear=${actualDate.getFullYear()}&actualMonth=${actualDate.getMonth() + 1}`;
+        // Build URL to request Calls from Twilio API
+        const target = new Date();
+        target.setHours(0, 0, 0, 0);
+        target.setDate(target.getDate() - numberOfPastDays);
+
+        const y = target.getFullYear();
+        const m = target.getMonth() + 1;  // 1–12
+        const d = target.getDate();       // 1–31
+
+        const url = `/api/calls/allCallsToday?actualYear=${y}&actualMonth=${m}&actualDate=${d}`;
+
 
         try {
             // Fetch records from Mongo Database and the compare the records against Twilio api response
@@ -109,7 +117,17 @@ export function todayCalls (todayCallElementID, numberOfPastDays) {
             });
             
             listResult += `</tbody></table>`;
-            updateContent("All Calls from Today", listResult);
+            let headingAllCallsFrom;
+            if(numberOfPastDays === 0){
+                headingAllCallsFrom = "All Calls from Today";
+            }else if(numberOfPastDays === 1){
+                headingAllCallsFrom = "All Calls from Yesterday";
+            }else if(numberOfPastDays === 2){
+                headingAllCallsFrom = "All Calls from 2 Days Ago";
+            } else{
+                headingAllCallsFrom = "All Calls from 3 Days Ago";
+            }
+            updateContent(headingAllCallsFrom, listResult);
 
             // Event delegation: Listen for checkbox and checkradio changes on the contentArea (parent container)
             document.getElementById('contentArea').addEventListener('change', async (event) => {

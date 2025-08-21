@@ -28,9 +28,11 @@ async function connectDB() {
     console.log('✅ Successfully connected to MongoDB!');
 
     // Start the server AFTER successful connection
+    /*
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
+    */
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
     process.exit(1); // Exit the app if the database fails to connect
