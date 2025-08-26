@@ -1,7 +1,48 @@
 const fs = require('fs');
 const xlsx = require('xlsx');
 const path = require('path');
-const { getCalls, filterCallsByNumbers, getPhoneNumberInfo, listRecordingFromSingleCall, getAllCallsToday } = require('../utils/twilioHelpers'); // Import helper functions
+const {
+    getCalls,
+    filterCallsByNumbers,
+    getPhoneNumberInfo,
+    listRecordingFromSingleCall,
+    getAllCallsToday,
+    isE164,
+    normalizeE164OrNull,
+    resolveDisplayDid
+ } = require('../utils/twilioHelpers'); // Import helper functions
+
+
+
+// prefer the parent inbound leg (E.164 `to`) over SIP child
+function dedupeByAnchor(calls) {
+  const byAnchor = new Map();
+  for (const c of calls) {
+    const anchor = c.parentCallSid || c.sid; // parent groups the child
+    // score: prefer inbound leg with real DID in `to`
+    const score =
+      (isE164(c.to) ? 10 : 0) +
+      (c.direction === 'inbound' ? 5 : 0) +
+      (c.status === 'completed' ? 1 : 0);
+
+    const current = byAnchor.get(anchor);
+    if (!current || score > current.score) byAnchor.set(anchor, { call: c, score });
+  }
+  return Array.from(byAnchor.values()).map(v => v.call);
+}
+
+
+
+
+// Prefer 'to' if it's E.164; else use 'from'; else null
+function pickDidForLookup(call) {
+    const to = normalizeE164OrNull(call.to);
+    if (to) return to;
+    const from = normalizeE164OrNull(call.from);
+    if (from) return from;
+    return null;
+  }
+  
 
 
 
@@ -44,13 +85,16 @@ exports.generateCallReport = async (req, res) => {
         const wb = xlsx.utils.book_new();
         const ws_data = [
             ['Call Time', 'Client Number', 'Campaign Name', 'Recording URL'],
-            ...(await Promise.all(filteredCalls.map(async (call) => [
-                new Date(call.startTime).toLocaleString(),
-                call.fromFormatted,
-                await getPhoneNumberInfo(call.to),
-                await listRecordingFromSingleCall(call.sid) || ` `
-            ])))
-        ];
+            ...(await Promise.all(filteredCalls.map(async (call) => {
+              const when = call.startTime ? new Date(call.startTime).toLocaleString() : '';
+              const clientNumber = call.fromFormatted || call.from || '';
+              const didForLookup = pickDidForLookup(call);            // <- E.164 or null
+              const campaignName = didForLookup ? (await getPhoneNumberInfo(didForLookup) || '') : '';
+              const recording = await listRecordingFromSingleCall(call.sid) || ' ';
+              return [when, clientNumber, campaignName, recording];
+            })))
+          ];
+          
         
 
         const ws = xlsx.utils.aoa_to_sheet(ws_data);
@@ -110,8 +154,8 @@ exports.generateDateRangeCalls = async (req, res) => {
         
 
         // Filter calls by phone numbers
-        const filteredCalls = filterCallsByNumbers(calls, phoneNumbers);
-
+        let filteredCalls = filterCallsByNumbers(calls, phoneNumbers);
+        filteredCalls = dedupeByAnchor(filteredCalls);
 
         // If no calls match, return a message
         if (filteredCalls.length === 0) {
@@ -120,20 +164,30 @@ exports.generateDateRangeCalls = async (req, res) => {
 
 
         // Ensure objects are modifiable/convert twilio's object to JS object & Wait for all recording URLs to resolve
-        let callings = await Promise.all(filteredCalls.map(async (call) => {
-          
-            return {
-                sid: call.sid,
-                from: call.fromFormatted,
-                to: call.toFormatted,
-                duration: call.duration,
-                startTime: call.startTime,
-                endTime: call.endTime,
-                status: call.status,
-                recordingURL: await listRecordingFromSingleCall(call.sid),
-                friendlyNumberName: await getPhoneNumberInfo(call.to)
-            }
+        const parentCache = new Map(); // cache parent calls per request
+
+        const callings = await Promise.all(filteredCalls.map(async (call) => {
+        const { did, formatted } = await resolveDisplayDid(call, parentCache);
+        const friendlyName = did ? (await getPhoneNumberInfo(did) || null) : null;
+
+        return {
+            sid: call.sid,
+            from: call.fromFormatted || call.from,
+            to: call.toFormatted || call.to,
+            duration: call.duration,
+            startTime: call.startTime,
+            endTime: call.endTime,
+            status: call.status,
+            recordingURL: await listRecordingFromSingleCall(call.sid),
+
+            // NEW fields for your frontend:
+            twilioDid: did,                 // e.g. "+14155551234"
+            twilioNumDisplay: formatted || did, // a nice string to render
+            friendlyNumberName: friendlyName,
+        };
         }));
+
+          
         
         res.status(200).json({message: "success", records: callings});
 
@@ -153,23 +207,32 @@ exports.generateAllCallsToday = async (req, res) => {
        
         //It gets an array of all calls from Today
         let allCallsToday = await getAllCallsToday(todayDate);
+        allCallsToday = dedupeByAnchor(allCallsToday);
        
 
         // Ensure objects are modifiable/convert twilio's object to JS object & Wait for all recording URLs to resolve
-        let callings = await Promise.all(allCallsToday.map(async (callToday) => {
-          
-            return {
-                sid: callToday.sid,
-                from: callToday.fromFormatted,
-                to: callToday.toFormatted,
-                duration: callToday.duration,
-                startTime: callToday.startTime,
-                endTime: callToday.endTime,
-                status: callToday.status,
-                recordingURL: await listRecordingFromSingleCall(callToday.sid),
-                friendlyNumberName: await getPhoneNumberInfo(callToday.to)
-            }
-        }));
+        const parentCache = new Map();
+
+        const callings = await Promise.all(allCallsToday.map(async (callToday) => {
+        const { did, formatted } = await resolveDisplayDid(callToday, parentCache);
+        const friendlyName = did ? (await getPhoneNumberInfo(did) || null) : null;
+
+        return {
+            sid: callToday.sid,
+            from: callToday.fromFormatted || callToday.from,
+            to: callToday.toFormatted || callToday.to,
+            duration: callToday.duration,
+            startTime: callToday.startTime,
+            endTime: callToday.endTime,
+            status: callToday.status,
+            recordingURL: await listRecordingFromSingleCall(callToday.sid),
+
+            // NEW:
+            twilioDid: did,
+            twilioNumDisplay: formatted || did,
+            friendlyNumberName: friendlyName,
+        };
+        }));      
         
         res.json(callings);
 
@@ -182,14 +245,16 @@ exports.generateAllCallsToday = async (req, res) => {
 
 
 exports.getRecordings = async (req, res) => {
-    try{
-
-        //Array of recordings Url
-        const recordingsArray = await Promise.all(listRecordingFromSingleCall(call.sid));
-        res.json(recordingsArray);
-
-    } catch (error){
-        console.error('Error generating call report:', error);
-        res.status(500).json({ success: false, message: 'Error generating report' });
+    try {
+      const { callSid } = req.query;
+      if (!callSid) {
+        return res.status(400).json({ success: false, message: 'Missing required parameter: callSid' });
+      }
+      const url = await listRecordingFromSingleCall(callSid);
+      return res.json({ success: true, recordingURL: url || null });
+    } catch (error) {
+      console.error('Error fetching recording:', error);
+      res.status(500).json({ success: false, message: 'Error fetching recording' });
     }
-}
+  };
+  

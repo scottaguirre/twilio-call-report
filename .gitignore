@@ -17,3 +17,6 @@ logs/
 *.log
 tmp/
 .cache/
+reports/
+*.xlsx
+

@@ -1,51 +1,54 @@
+// routes/retellWebhook.js
 const express = require('express');
 const router = express.Router();
-const nodemailer = require('nodemailer');
+const { sendTelegram } = require('../utils/telegram');
 
-// Required env vars:
-// SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
-// ALERT_SMS_EMAIL (e.g. '12145551234@tmomail.net' or '12145551234@vtext.com')
-const {
-  SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, ALERT_SMS_EMAIL
-} = process.env;
-
-const transporter = nodemailer.createTransport({
-  host: SMTP_HOST,
-  port: Number(SMTP_PORT || 587),
-  secure: Number(SMTP_PORT) === 465, // true only for 465
-  auth: { user: SMTP_USER, pass: SMTP_PASS },
-});
-
-// keep messages short for SMS gateways
-const smsify = (s = '', max = 300) => String(s).replace(/\s+/g, ' ').trim().slice(0, max);
+const pick = v => (v && String(v).trim()) || null;
 
 router.post('/retell/webhook', express.json(), async (req, res) => {
   try {
-    const { call, call_analysis } = req.body || {};
+    const { event, call } = req.body || {};
+    if (event !== 'call_analyzed' || !call) return res.sendStatus(204);
 
-    const from    = call?.from_number || call?.caller || 'unknown';
-    const to      = call?.to_number   || 'unknown';
-    const name    = call_analysis?.extracted?.customer_name   || call?.metadata?.customer_name || 'N/A';
-    const phone   = call_analysis?.extracted?.callback_phone  || from || 'N/A';
-    const service = call_analysis?.extracted?.service_type    || 'N/A';
-    const summary = call_analysis?.summary || 'No summary';
+    const ca  = call.call_analysis || {};
+    const cad = ca.custom_analysis_data || {};
 
-    const text = smsify(
-      `New lead • From ${from}→${to} • Name: ${name} • Phone: ${phone} • Service: ${service} • ${summary}`,
-      300
-    );
+    // fields you confirmed exist on call_analyzed
+    const firstName = pick(cad.first_name);
+    const lastName  = pick(cad.last_name);
+    const email     = pick(cad.email);
 
-    await transporter.sendMail({
-      from: FROM_EMAIL,
-      to: ALERT_SMS_EMAIL,   // your carrier SMS-gateway address
-      subject: '',           // most gateways ignore subject
-      text,
-    });
+    const year   = pick(cad.vehicle_year);
+    const make   = pick(cad.vehicle_make);
+    const model  = pick(cad.vehicle_model);
+    const issue  = pick(cad.vehicle_problem);
 
-    res.sendStatus(200);
+    const from   = pick(call.from_number);
+    const to     = pick(call.to_number);
+    const rec    = pick(call.recording_url);
+    const logUrl = pick(call.public_log_url);
+    const summary = pick(ca.call_summary || ca.summary);
+
+    // build message without "Unknown" lines
+    const lines = ['📞 New Lead '];   
+    if (firstName || lastName) lines.push(`Name: ${[firstName, lastName].filter(Boolean).join(' ')}`);
+    if (email)  lines.push(`Email: ${email}`);
+    if (from)   lines.push(`Phone: ${from}`);
+    const veh = [year, make, model].filter(Boolean).join(' ');
+    if (veh)    lines.push(`Vehicle: ${veh}`);
+    if (to == "+14698333483") {
+      lines.push(`State: TX`);
+    } 
+    if (issue)  lines.push(`Issue: ${issue}`);
+   
+
+    const text = lines.join('\n');
+    if (text) await sendTelegram(text);
+
+    return res.sendStatus(200);
   } catch (err) {
-    console.error('Retell webhook Email→SMS error:', err);
-    res.sendStatus(500);
+    console.error('retell webhook error:', err);
+    return res.sendStatus(500);
   }
 });
 

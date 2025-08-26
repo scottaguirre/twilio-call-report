@@ -11,6 +11,8 @@ const callRoutes = require('./routes/calls');
 const phoneRoutes = require('./routes/phoneNumbers');
 const databaseRoutes = require('./routes/databaseRoutes');
 const retellWebhook = require('./routes/retellWebhook');
+const twilioVoice = require('./routes/twilioVoice');
+
 
 
 const app = express();
@@ -30,11 +32,23 @@ app.get('/test', (req, res) => {
   });
 
 
+  console.log('Route types:', {
+    callRoutes: typeof callRoutes,
+    phoneRoutes: typeof phoneRoutes,
+    databaseRoutes: typeof databaseRoutes,
+    retellWebhook: typeof retellWebhook,
+    twilioVoice: typeof twilioVoice,
+    // whatsappRoute: typeof whatsappRoute, // (you removed this one)
+  });
+  
+
+
 // Register routes
 app.use('/api/calls', callRoutes);
 app.use('/api/phones', phoneRoutes);
 app.use('/api/records', databaseRoutes);
 app.use(retellWebhook); // exposes POST /retell/webhook
+app.use('/retell/webhook', twilioVoice);
 
 
 const PORT = process.env.PORT || 8888;

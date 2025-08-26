@@ -2,6 +2,28 @@ import { formatMinutes } from '/utils/formatMinutes.js';
 import { updateContent } from '/utils/updateContent.js';
 
 
+// --- Helper to display a human-friendly Twilio number ---
+const E164 = /^\+\d{7,15}$/;
+function isE164(n) { return typeof n === 'string' && E164.test(String(n||'').trim()); }
+
+
+function prettyTwilioNum(call) {
+  // Prefer backend-provided fields (added in the backend patch)
+  if (call.twilioNumDisplay && isE164(call.twilioNumDisplay)) return call.twilioNumDisplay;
+  if (call.twilioDid && isE164(call.twilioDid))             return call.twilioDid;
+
+  // Fallbacks if backend didn’t provide them (still keeps UI clean)
+  if (isE164(call.to))        return call.to;
+  if (isE164(call.toFormatted)) return call.toFormatted;
+  if (call.friendlyNumberName)  return call.friendlyNumberName;
+
+  // Last resort when `to` is a SIP URI and no DID is available
+  return 'SIP bridge';
+}
+
+
+
+
 // Event listeners for todayCalls options
 export function todayCalls (todayCallElementID, numberOfPastDays) {
     
@@ -101,7 +123,7 @@ export function todayCalls (todayCallElementID, numberOfPastDays) {
                     <td class="text-center">${formatDate(call.startTime)}</td>
                     <td>${call.from}</td>
                     <td>${friendlyName}</td>
-                    <td>${call.to}</td>
+                    <td class="truncate" title="${call.to || ''}">${prettyTwilioNum(call)}</td>
                     <td class="text-center">${formatMinutes(call.duration)}</td>
                     <td class="text-center">${recordingLink}</td>
                     <td class="text-center">
