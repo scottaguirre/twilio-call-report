@@ -1,11 +1,18 @@
 // routes/twilioVoice.js
 const express = require('express');
-const router = express.Router();
-const { twiml: { VoiceResponse } } = require('twilio');
 const { Retell } = require('retell-sdk');
+const brands = require('../config/brandConfig');
+const { twiml: { VoiceResponse } } = require('twilio');
+
+const router = express.Router();
+
 
 // If you ever need urlencoded parsing only for this route:
 const urlencoded = express.urlencoded({ extended: false });
+const E164 = /^\+\d{7,15}$/;
+const toE164 = v => (typeof v === 'string' && E164.test(v.trim())) ? v.trim() : null;
+
+
 
 router.post('/twilio/voice', urlencoded, async (req, res) => {
   try {
@@ -26,14 +33,19 @@ router.post('/twilio/voice', urlencoded, async (req, res) => {
     const sipUri = `sip:${callId}@5t4n6j0wnrl.sip.livekit.cloud`; // Retell’s SIP ingress host
 
     const vr = new VoiceResponse();
+
+    // build a stable base URL from EB env var, fallback to Host header
+    const baseUrl = (process.env.PUBLIC_BASE_URL ? process.env.PUBLIC_BASE_URL.replace(/\/+$/, '') : `${req.protocol}://${req.get('host')}`);
+
+
     // Preserve real caller ID so Retell “sees” the right number
     const dial = vr.dial({
-      callerId: req.body.From,
+      callerId: req.body.To,
       answerOnBridge: true,
       timeout: 20,
       // start recording on answer; use "record-from-answer-dual" for 2 channels
       record: 'record-from-answer-dual',
-      recordingStatusCallback: 'https://028c9122a2a1.ngrok-free.app/twilio/recording-status',
+      recordingStatusCallback: `${baseUrl}/twilio/recording-status`,
       recordingStatusCallbackEvent: ['completed']
      });
 
@@ -51,3 +63,6 @@ router.post('/twilio/voice', urlencoded, async (req, res) => {
 });
 
 module.exports = router;
+
+
+

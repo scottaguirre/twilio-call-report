@@ -14,7 +14,8 @@ exports.getTwilioPhoneNumbers = async (req, res) => {
             }))
         });
     } catch (error) {
-        console.error('Error fetching phone numbers:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
+        console.error('Error fetching phone numbers:',
+          error.status, error.code, error.message, error.moreInfo || '');
+        res.status(500).json({ success: false, error: error.message, code: error.code });
+      }
 };

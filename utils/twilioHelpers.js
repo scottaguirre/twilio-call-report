@@ -136,30 +136,6 @@ async function listRecordingFromSingleCall(callOrSid) {
 
 
 
-  
-
-/*
- // Get recordings by individual phone number
-  async function listRecordingFromSingleCall(callSid) {
-    const recordings = await client.recordings.list({
-      callSid
-    });
-
-      let urlMedia;
-
-      if(recordings.length > 0){
-        //console.log(recordings[0].mediaUrl);
-         urlMedia = await recordings[0].mediaUrl;
-        return urlMedia;
-      }else{
-        return false;
-      } 
-    
-  }
-
-*/
-
-
 // Get the information of a given phone number
 async function getPhoneNumberInfo(phoneNumber){
 

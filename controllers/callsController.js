@@ -120,8 +120,8 @@ exports.generateCallReport = async (req, res) => {
 
 
     } catch (error) {
-        console.error('Error generating call report:', error);
-        res.status(500).json({ success: false, message: 'Error generating report' });
+        console.error('Error generating call report:', error.status, error.code, error.message, error.moreInfo || '');
+        res.status(500).json({ success: false, message: 'Error generating report', error: error.message, code: error.code });
     }
     
 };
@@ -192,8 +192,9 @@ exports.generateDateRangeCalls = async (req, res) => {
         res.status(200).json({message: "success", records: callings});
 
     } catch (error) {
-        console.error('Error generating call report:', error);
-        res.status(500).json({ success: false, message: 'Error generating report' });
+        console.error('Error generating call report:', error.status, error.code, error.message, error.moreInfo || '');
+
+        res.status(500).json({ success: false, message: 'Error generating report', error: error.message, code: error.code });
     }
     
 };
@@ -237,8 +238,8 @@ exports.generateAllCallsToday = async (req, res) => {
         res.json(callings);
 
     } catch (error) {
-        console.error('Error generating call report:', error);
-        res.status(500).json({ success: false, message: 'Error generating report' });
+        console.error('Error generating call report:', error.status, error.code, error.message, error.moreInfo || '');
+        res.status(500).json({ success: false, message: 'Error generating report', error: error.message, code: error.code });
     }
     
 };
@@ -253,8 +254,8 @@ exports.getRecordings = async (req, res) => {
       const url = await listRecordingFromSingleCall(callSid);
       return res.json({ success: true, recordingURL: url || null });
     } catch (error) {
-      console.error('Error fetching recording:', error);
-      res.status(500).json({ success: false, message: 'Error fetching recording' });
+      console.error('Error fetching recording:', error.status, error.code, error.message, error.moreInfo || '');
+      res.status(500).json({ success: false, message: 'Error fetching recording', error: error.message, code: error.code });
     }
   };
   
