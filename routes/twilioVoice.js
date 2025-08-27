@@ -13,7 +13,7 @@ router.post('/twilio/voice', urlencoded, async (req, res) => {
     const retell = new Retell({ apiKey: process.env.RETELL_API_KEY });
 
     const reg = await retell.call.registerPhoneCall({
-      agent_id: process.env.RETELL_AGENT_ID,   // your Retell agent id
+      agent_id: process.env.RETELL_AGENT_HOUSTON,   // your Retell agent id
       from_number: req.body.From,              // caller
       to_number: req.body.To,                  // the Twilio number that was called
       direction: 'inbound',
